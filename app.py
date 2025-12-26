@@ -57,6 +57,11 @@ def get_calorie_info(food_name: str) -> str:
         return f"エラーが発生しました: {str(e)}"
 
 
+@app.route("/")
+def health():
+    return "OK"
+
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature', '')
