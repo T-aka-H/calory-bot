@@ -27,6 +27,7 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # OpenAI設定
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
+
 def get_calorie_info(food_name: str) -> str:
     """ChatGPTにカロリー情報を問い合わせ"""
     try:
@@ -37,10 +38,10 @@ def get_calorie_info(food_name: str) -> str:
                 {
                     "role": "system",
                     "content": """あなたは置き換えダイエットの専門家です。
-ユーザーが食材や料理名を送ってきたら、以下の形式で回答してください。
+ユーザーが食材の名前を送ってきたら、以下の形式で回答してください。
 
 1. その食品のカロリー（一般的な1人前）
-2. 置き換えアドバイス：食材や調理法を変えることでカロリーを抑える具体的な提案を2〜3個
+2. 置き換えアドバイス（食材の名前を変えることでカロリーを抑える具体的な提案を2つ）
 
 回答は150〜200文字程度で簡潔にまとめてください。
 親しみやすい口調で答えてください。"""
@@ -55,22 +56,24 @@ def get_calorie_info(food_name: str) -> str:
     except Exception as e:
         return f"エラーが発生しました: {str(e)}"
 
+
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
-    
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
     return 'OK'
 
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     food_name = event.message.text
     calorie_info = get_calorie_info(food_name)
-    
+
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
@@ -80,46 +83,7 @@ def handle_message(event):
             )
         )
 
+
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=True)
-```
-
----
-
-### 2. `requirements.txt`
-```
-flask
-line-bot-sdk
-openai
-python-dotenv
-gunicorn
-```
-
----
-
-### 3. `.env`（ローカル用・Gitにあげない）
-```
-LINE_CHANNEL_SECRET=ここにチャネルシークレット
-LINE_CHANNEL_ACCESS_TOKEN=ここにアクセストークン
-OPENAI_API_KEY=ここにOpenAIのAPIキー
-```
-
----
-
-### 4. `.gitignore`
-```
-.env
-venv/
-__pycache__/
-```
-
----
-
-## フォルダ構成
-```
-calorie-bot/
-├── app.py
-├── requirements.txt
-├── .env
-└── .gitignore
+    app.run(host='0.0.0.0', port=port, debug=False)
