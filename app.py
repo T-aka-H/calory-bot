@@ -76,7 +76,9 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
+    user_id = event.source.user_id
     food_name = event.message.text
+    print(f"[受信] user_id: {user_id}, message: {food_name}")
     calorie_info = get_calorie_info(food_name)
 
     with ApiClient(configuration) as api_client:
