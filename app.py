@@ -218,16 +218,36 @@ def get_quiz(quiz_id):
 def get_random_quiz(user_id):
     """ユーザーがまだ解いていないクイズをランダムに取得"""
     # 全クイズを取得
-    result = supabase.table('quizzes').select('*').execute()
-    all_quizzes = result.data
+    all_result = supabase.table('quizzes').select('id').execute()
+    all_quiz_ids = [q['id'] for q in all_result.data]
 
-    if not all_quizzes:
-        # クイズがない場合はAIで生成
+    # ユーザーが解いたクイズIDを取得
+    history_result = supabase.table('quiz_history').select('quiz_id').eq('user_id', user_id).execute()
+    answered_ids = [h['quiz_id'] for h in history_result.data]
+
+    # 未回答のクイズIDを抽出
+    unanswered_ids = [qid for qid in all_quiz_ids if qid not in answered_ids]
+
+    if not unanswered_ids:
+        # 全問解いた場合はAIで新しい問題を生成
         return generate_quiz_with_ai()
 
-    # ランダムに1問選択
-    quiz = random.choice(all_quizzes)
-    return quiz
+    # 未回答からランダムに選択
+    quiz_id = random.choice(unanswered_ids)
+    result = supabase.table('quizzes').select('*').eq('id', quiz_id).execute()
+    return result.data[0]
+
+
+def record_quiz_answer(user_id, quiz_id):
+    """クイズの解答履歴を記録"""
+    try:
+        supabase.table('quiz_history').insert({
+            'user_id': user_id,
+            'quiz_id': quiz_id
+        }).execute()
+    except:
+        # 既に記録済みの場合は無視
+        pass
 
 
 def generate_quiz_with_ai():
@@ -288,6 +308,9 @@ def check_answer(user_id, answer):
     quiz = get_quiz(current_quiz_id)
     if not quiz:
         return "クイズが見つかりませんでした。「#クイズ」で新しい問題に挑戦！", False
+
+    # 解答履歴を記録
+    record_quiz_answer(user_id, current_quiz_id)
 
     answer = answer.upper()
     is_correct = (answer == quiz['correct_answer'])
