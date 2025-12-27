@@ -7,7 +7,8 @@ from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi,
-    ReplyMessageRequest, PushMessageRequest, TextMessage
+    ReplyMessageRequest, PushMessageRequest, TextMessage,
+    QuickReply, QuickReplyItem, MessageAction
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.exceptions import InvalidSignatureError
@@ -235,11 +236,11 @@ def check_answer(user_id, answer):
     current_quiz_id = progress['current_quiz_id']
 
     if current_quiz_id == 0:
-        return "まだクイズに挑戦していません。「#クイズ」と送ってね！"
+        return "まだクイズに挑戦していません。「#クイズ」と送ってね！", False
 
     quiz = get_quiz(current_quiz_id)
     if not quiz:
-        return "クイズが見つかりませんでした。「#クイズ」で新しい問題に挑戦！"
+        return "クイズが見つかりませんでした。「#クイズ」で新しい問題に挑戦！", False
 
     answer = answer.upper()
     is_correct = (answer == quiz['correct_answer'])
@@ -250,10 +251,10 @@ def check_answer(user_id, answer):
     stats = f"\n\n📊 成績: {progress['correct_count']}/{progress['total_count']}問正解"
 
     if is_correct:
-        return f"⭕ 正解！\n\n{quiz['explanation']}{stats}\n\n→「#クイズ」で次の問題へ"
+        return f"⭕ 正解！\n\n{quiz['explanation']}{stats}", True
     else:
         correct_text = quiz[f"choice_{quiz['correct_answer'].lower()}"]
-        return f"❌ 残念！正解は {quiz['correct_answer']}. {correct_text}\n\n{quiz['explanation']}{stats}\n\n→「#クイズ」で次の問題へ"
+        return f"❌ 残念！正解は {quiz['correct_answer']}. {correct_text}\n\n{quiz['explanation']}{stats}", True
 
 
 def start_quiz(user_id):
@@ -355,12 +356,17 @@ def handle_message(event):
     # ログに記録
     add_log_entry(user_name, user_id, message_text)
 
+    # クイックリプライを使うかどうかのフラグ
+    show_quiz_quick_reply = False
+    show_answer_quick_reply = False
+
     # メッセージの種類に応じて処理を分岐
     if message_text == "#クイズ":
         reply_text = start_quiz(user_id)
+        show_answer_quick_reply = True
 
     elif message_text.upper() in ['A', 'B', 'C']:
-        reply_text = check_answer(user_id, message_text)
+        reply_text, show_quiz_quick_reply = check_answer(user_id, message_text)
 
     elif message_text == "#開発日記":
         reply_text = get_article_list()
@@ -387,13 +393,34 @@ def handle_message(event):
     else:
         reply_text = get_calorie_info(message_text)
 
+    # 返信メッセージを作成
+    if show_quiz_quick_reply:
+        message = TextMessage(
+            text=reply_text,
+            quick_reply=QuickReply(items=[
+                QuickReplyItem(action=MessageAction(label="次の問題へ", text="#クイズ")),
+                QuickReplyItem(action=MessageAction(label="終了", text="#カロリー"))
+            ])
+        )
+    elif show_answer_quick_reply:
+        message = TextMessage(
+            text=reply_text,
+            quick_reply=QuickReply(items=[
+                QuickReplyItem(action=MessageAction(label="A", text="A")),
+                QuickReplyItem(action=MessageAction(label="B", text="B")),
+                QuickReplyItem(action=MessageAction(label="C", text="C"))
+            ])
+        )
+    else:
+        message = TextMessage(text=reply_text)
+
     # 返信
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
+                messages=[message]
             )
         )
 
