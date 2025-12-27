@@ -1,5 +1,6 @@
-flask
+﻿flask
 line-bot-sdk
 openai
 python-dotenv
 gunicorn
+supabase
