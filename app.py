@@ -363,7 +363,7 @@ def handle_message(event):
         reply_text = get_article_list()
 
     elif message_text == "#カロリー":
-        reply_text = "🍽 カロリー検索\n\n食材名を送ってください。\n例: ラーメン、餃子、カレーライス"
+        reply_text = "🍽 カロリー検索\n\n気になる食材名を教えて！\n例: ラーメン、餃子、カレーライス"
 
     elif message_text.startswith("#記事"):
         try:
