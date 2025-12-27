@@ -328,6 +328,16 @@ def summary():
     return "OK"
 
 
+@app.route("/health-db", methods=['GET'])
+def health_db():
+    """Supabase??????"""
+    try:
+        supabase.table('quizzes').select('id').limit(1).execute()
+        return "OK"
+    except Exception as e:
+        return f"Error: {e}", 500
+
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
