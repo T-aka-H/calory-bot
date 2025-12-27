@@ -130,6 +130,53 @@ def get_calorie_info(food_name: str) -> str:
         return f"エラーが発生しました: {str(e)}"
 
 
+# ===== チャット機能 =====
+def get_chat_response(message: str) -> str:
+    """ChatGPTに通常の会話を問い合わせ"""
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=500,
+            messages=[
+                {
+                    "role": "system",
+                    "content": """あなたはフレンドリーなアシスタントです。
+親しみやすい口調で会話してください。
+回答は簡潔に、100文字程度でまとめてください。"""
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"エラーが発生しました: {str(e)}"
+
+
+# ===== モード管理 =====
+def get_user_mode(user_id):
+    """ユーザーの現在のモードを取得"""
+    result = supabase.table('user_mode').select('mode').eq('user_id', user_id).execute()
+    if result.data:
+        return result.data[0]['mode']
+    supabase.table('user_mode').insert({'user_id': user_id, 'mode': 'menu'}).execute()
+    return 'menu'
+
+
+def set_user_mode(user_id, mode):
+    """ユーザーのモードを設定"""
+    result = supabase.table('user_mode').select('user_id').eq('user_id', user_id).execute()
+    if result.data:
+        supabase.table('user_mode').update({
+            'mode': mode,
+            'updated_at': datetime.now(JST).isoformat()
+        }).eq('user_id', user_id).execute()
+    else:
+        supabase.table('user_mode').insert({'user_id': user_id, 'mode': mode}).execute()
+
+
 # ===== クイズ機能 =====
 def get_user_progress(user_id):
     """ユーザーのクイズ進捗を取得"""
@@ -357,47 +404,38 @@ def handle_message(event):
     add_log_entry(user_name, user_id, message_text)
 
     # クイックリプライの種類
-    quick_reply_type = None  # None, "quiz_answer", "quiz_next", "menu"
+    quick_reply_type = None
 
     # メッセージの種類に応じて処理を分岐
     if message_text == "#クイズ":
+        set_user_mode(user_id, 'quiz')
         reply_text = start_quiz(user_id)
         quick_reply_type = "quiz_answer"
 
-    elif message_text.upper() in ['A', 'B', 'C']:
-        reply_text, answered = check_answer(user_id, message_text)
-        if answered:
-            quick_reply_type = "quiz_next"
-
     elif message_text == "#カロリー":
+        set_user_mode(user_id, 'calorie')
         reply_text = "🍽 カロリー検索\n\n気になる食材名を教えて！\n例: ラーメン、餃子、カレーライス"
 
     elif message_text == "#チャット":
+        set_user_mode(user_id, 'chat')
         reply_text = "💬 チャットモード\n\n何でも話しかけてください！"
-        quick_reply_type = "menu"
-
-    elif message_text.startswith("#記事"):
-        try:
-            article_id = int(message_text.replace("#記事", ""))
-            article = get_article_detail(article_id)
-            reply_text = article if article else "その記事は見つかりませんでした。"
-        except ValueError:
-            reply_text = "記事番号を指定してください。例: #記事1"
-        quick_reply_type = "menu"
-
-    elif message_text.isdigit():
-        article_id = int(message_text)
-        article = get_article_detail(article_id)
-        if article:
-            reply_text = article
-            quick_reply_type = "menu"
-        else:
-            reply_text = get_calorie_info(message_text)
-            quick_reply_type = "menu"
 
     else:
-        reply_text = get_calorie_info(message_text)
-        quick_reply_type = "menu"
+        if message_text.upper() in ['A', 'B', 'C']:
+            reply_text, answered = check_answer(user_id, message_text)
+            if answered:
+                quick_reply_type = "quiz_next"
+        elif message_text.isdigit():
+            reply_text = get_calorie_info(message_text)
+            quick_reply_type = "menu"
+        else:
+            current_mode = get_user_mode(user_id)
+            if current_mode == 'chat':
+                reply_text = get_chat_response(message_text)
+                quick_reply_type = "menu"
+            else:
+                reply_text = get_calorie_info(message_text)
+                quick_reply_type = "menu"
 
     # 返信メッセージを作成
     if quick_reply_type == "quiz_answer":
