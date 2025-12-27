@@ -121,7 +121,10 @@ def get_calorie_info(food_name: str) -> str:
                 }
             ]
         )
-        return response.choices[0].message.content
+        message = response.choices[0].message.content
+        if not message.rstrip().endswith("Have a nice calory!"):
+            message = f"{message.rstrip()}\n\nHave a nice calory!"
+        return message
     except Exception as e:
         return f"エラーが発生しました: {str(e)}"
 
