@@ -356,23 +356,26 @@ def handle_message(event):
     # ログに記録
     add_log_entry(user_name, user_id, message_text)
 
-    # クイックリプライを使うかどうかのフラグ
-    show_quiz_quick_reply = False
-    show_answer_quick_reply = False
+    # クイックリプライの種類
+    quick_reply_type = None  # None, "quiz_answer", "quiz_next", "menu"
 
     # メッセージの種類に応じて処理を分岐
     if message_text == "#クイズ":
         reply_text = start_quiz(user_id)
-        show_answer_quick_reply = True
+        quick_reply_type = "quiz_answer"
 
     elif message_text.upper() in ['A', 'B', 'C']:
-        reply_text, show_quiz_quick_reply = check_answer(user_id, message_text)
-
-    elif message_text == "#開発日記":
-        reply_text = get_article_list()
+        reply_text, answered = check_answer(user_id, message_text)
+        if answered:
+            quick_reply_type = "quiz_next"
 
     elif message_text == "#カロリー":
         reply_text = "🍽 カロリー検索\n\n気になる食材名を教えて！\n例: ラーメン、餃子、カレーライス"
+        quick_reply_type = "menu"
+
+    elif message_text == "#チャット":
+        reply_text = "💬 チャットモード\n\n何でも話しかけてください！"
+        quick_reply_type = "menu"
 
     elif message_text.startswith("#記事"):
         try:
@@ -381,34 +384,48 @@ def handle_message(event):
             reply_text = article if article else "その記事は見つかりませんでした。"
         except ValueError:
             reply_text = "記事番号を指定してください。例: #記事1"
+        quick_reply_type = "menu"
 
     elif message_text.isdigit():
         article_id = int(message_text)
         article = get_article_detail(article_id)
         if article:
             reply_text = article
+            quick_reply_type = "menu"
         else:
             reply_text = get_calorie_info(message_text)
+            quick_reply_type = "menu"
 
     else:
         reply_text = get_calorie_info(message_text)
+        quick_reply_type = "menu"
 
     # 返信メッセージを作成
-    if show_quiz_quick_reply:
-        message = TextMessage(
-            text=reply_text,
-            quick_reply=QuickReply(items=[
-                QuickReplyItem(action=MessageAction(label="次の問題へ", text="#クイズ")),
-                QuickReplyItem(action=MessageAction(label="終了", text="#カロリー"))
-            ])
-        )
-    elif show_answer_quick_reply:
+    if quick_reply_type == "quiz_answer":
         message = TextMessage(
             text=reply_text,
             quick_reply=QuickReply(items=[
                 QuickReplyItem(action=MessageAction(label="A", text="A")),
                 QuickReplyItem(action=MessageAction(label="B", text="B")),
                 QuickReplyItem(action=MessageAction(label="C", text="C"))
+            ])
+        )
+    elif quick_reply_type == "quiz_next":
+        message = TextMessage(
+            text=reply_text,
+            quick_reply=QuickReply(items=[
+                QuickReplyItem(action=MessageAction(label="次の問題へ", text="#クイズ")),
+                QuickReplyItem(action=MessageAction(label="カロリー検索", text="#カロリー")),
+                QuickReplyItem(action=MessageAction(label="チャット", text="#チャット"))
+            ])
+        )
+    elif quick_reply_type == "menu":
+        message = TextMessage(
+            text=reply_text,
+            quick_reply=QuickReply(items=[
+                QuickReplyItem(action=MessageAction(label="カロリー検索", text="#カロリー")),
+                QuickReplyItem(action=MessageAction(label="クイズ", text="#クイズ")),
+                QuickReplyItem(action=MessageAction(label="チャット", text="#チャット"))
             ])
         )
     else:
